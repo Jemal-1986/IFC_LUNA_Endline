@@ -1,0 +1,112 @@
+---
+title: "Untitled"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(readr)
+library(dplyr)
+library(tidyr)
+library(DT)
+library(plotly)
+library(haven)
+```
+
+
+```{r}
+# Load data
+file_path <- "C:/Users/DAB-DRT/OneDrive - DAB Development Research and Training/IFC-LUNA/HFC/CleanedData/MERGED_IFC_LUNA_HOUSEHOLD.dta"
+df <- haven::read_dta(file_path)
+
+# Clean column names
+names(df) <- trimws(names(df))
+
+# Check required columns
+required_columns <- c("woreda", "a4", "a7")
+missing_cols <- setdiff(required_columns, names(df))
+if (length(missing_cols) > 0) stop(paste("Missing columns:", paste(missing_cols, collapse = ", ")))
+
+# Rename columns
+df <- df %>% rename(kebele = a4, sex = a7)
+
+```
+
+
+Column {data-width=200}
+-----------------------------------------------------------------------
+
+### Chart A
+
+```{r}
+# Recode sex (from haven_labelled to numeric -> character)
+df$sex <- as.numeric(as.character(df$sex))
+df$sex <- dplyr::recode(df$sex, `1` = "Male", `2` = "Female", .default = NA_character_)
+
+# Recode kebele numbers to kebele names
+df$kebele <- as.numeric(as.character(df$kebele))
+df$kebele <- dplyr::recode(df$kebele,
+  `1` = "Mukecha", `2` = "Shabe Argemanda", `3` = "Altaargude", `4` = "Luka",
+  `5` = "Bor", `6` = "Buneker", `7` = "Anisonda", `8` = "Gurdo",
+  `9` = "Hufe", `10` = "Sile", `11` = "Arya Kaysa", `12` = "Besheda",
+  `13` = "Arya Ambule", `14` = "Achi Aligone", `15` = "Dimka", `16` = "Agudea",
+  `17` = "Gedback", `18` = "Genbela", `19` = "Lokoro", `20` = "Langoy",
+  `21` = "Hado", `22` = "Fejej", `23` = "Kakuta", `24` = "Lopokor",
+  `25` = "Koutom", `26` = "Napotokoit",
+  .default = NA_character_
+)
+
+# Filter valid kebele and sex
+df <- df %>%
+  filter(!is.na(kebele), !is.na(sex))
+
+# Summarize interviews by kebele and sex
+kebele_sex_summary <- df %>%
+  count(kebele, sex) %>%
+  tidyr::pivot_wider(names_from = sex, values_from = n, values_fill = 0) %>%
+  mutate(Total = Male + Female) %>%
+  arrange(desc(Total))
+
+# Display as an interactive datatable
+DT::datatable(kebele_sex_summary,
+              options = list(pageLength = 26),
+              rownames = FALSE,
+              caption = "Number of Interviews per Kebele by Sex")
+
+```
+
+Column {data-width=350}
+-----------------------------------------------------------------------
+
+### Chart B
+
+```{r}
+df$woreda <- as.numeric(df$woreda)
+df$woreda <- dplyr::recode(df$woreda, `1` = "Bena Tsemay", `2` = "Hamer", `3` = "Dasenech", `4` = "Nyangatom", .default = NA_character_)
+
+woreda_summary <- df %>%
+  count(woreda) %>%
+  arrange(desc(n))
+
+plot_ly(woreda_summary, x = ~reorder(woreda, -n), y = ~n, type = 'bar') %>%
+  layout(title = "Interviews per Woreda",
+         xaxis = list(title = "Woreda"),
+         yaxis = list(title = "Count"))
+```
+
+### Chart C
+
+```{r}
+kebele_summary <- df %>%
+  count(kebele) %>%
+  arrange(desc(n))
+
+plot_ly(kebele_summary, x = ~reorder(kebele, -n), y = ~n, type = 'bar') %>%
+  layout(title = "Interviews per kebele",
+         xaxis = list(title = "kebele"),
+         yaxis = list(title = "Count"))
+```
+
